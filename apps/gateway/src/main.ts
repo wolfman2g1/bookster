@@ -4,7 +4,7 @@ import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 5000);
+  
   // Enable built-in request logging
   app.use((req, res, next) => {
     const logger = new Logger('HTTP');
@@ -22,5 +22,7 @@ async function bootstrap() {
 
     next();
   });
+  
+  await app.listen(process.env.PORT ?? 5000);
 }
 bootstrap();

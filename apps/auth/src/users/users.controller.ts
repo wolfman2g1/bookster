@@ -32,7 +32,8 @@ export class UsersController implements UserServiceController {
   }
 
   updateUser(request: UpdateUserRequest) {
-    return this.usersService.update(request.id, request);
+   
+    return this.usersService.update(request);
   }
 
   deleteUser(request: DeleteUserRequest) {

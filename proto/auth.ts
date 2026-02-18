@@ -39,7 +39,7 @@ export interface CreateUserRequest {
   firstName: string;
   lastName: string;
   email: string;
-  role: string;
+  role?: string | undefined;
 }
 
 /** GetUserByIDRequest is the request message for retrieving a user by their unique ID. */
@@ -49,11 +49,12 @@ export interface GetUserByIDRequest {
 
 /** update user request */
 export interface UpdateUserRequest {
+  id: string;
   username: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
+  role?: string | undefined;
   confirmed?: boolean | undefined;
   confirmationTokenExpires?: Timestamp | undefined;
   resetPassword?: boolean | undefined;

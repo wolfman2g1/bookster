@@ -7,6 +7,7 @@ import * as argon from 'argon2';
 import { generateConfirmationToken, generateTempPassword, getConfirmationTokenExpiry } from '@app/common/utils';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
   
@@ -22,6 +23,23 @@ export class UsersService {
     const hash = await argon.hash(createUserRequest.password);
     const confirmationToken = generateConfirmationToken();
     const confirmationTokenExpiry = getConfirmationTokenExpiry();
+    // check if user with same email  exists
+    const existingUser = await this.prisma.user.findUnique({ where: { email: createUserRequest.email } });
+    if (existingUser) {
+      throw new RpcException({
+        code: 6, // ALREADY_EXISTS gRPC status code
+        message: 'User with this email already exists'
+      });
+    }
+    // check if user with same username exists
+    const existingUsername = await this.prisma.user.findUnique({ where: { username: createUserRequest.username } });
+    if (existingUsername) {
+      throw new RpcException({
+        code: 6, // ALREADY_EXISTS gRPC status code
+        message: 'User with this username already exists'
+      });
+    }
+    
     const user = await this.prisma.user.create({
       data: {
         username: createUserRequest.username,

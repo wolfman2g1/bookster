@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { CreateUserRequest, GetUserByIDRequest, UserServiceClient, DeleteUserRequest, UpdateUserRequest } from '@app/common/types/auth';
+import { CreateUserRequest, GetUserByIDRequest, UserServiceClient, DeleteUserRequest, UpdateUserRequest, USER_SERVICE_NAME } from '@app/common/types/auth';
 import { AUTH_SERVICE } from './constancts';
 import { ClientGrpc } from '@nestjs/microservices';
 
@@ -9,7 +9,7 @@ export class UsersService implements OnModuleInit {
   constructor(@Inject(AUTH_SERVICE) private client: ClientGrpc)
   { }
   onModuleInit() {
-    this.userService = this.client.getService<UserServiceClient>(AUTH_SERVICE);
+    this.userService = this.client.getService<UserServiceClient>(USER_SERVICE_NAME);
   }
   create(createUserDto: CreateUserRequest) {
     return this.userService.createUser(createUserDto);

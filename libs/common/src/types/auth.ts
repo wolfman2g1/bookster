@@ -7,8 +7,8 @@
 /* eslint-disable */
 import { GrpcMethod, GrpcStreamMethod } from "@nestjs/microservices";
 import { Observable } from "rxjs";
-import { Empty } from "../../../../google/protobuf/empty";
-import { Timestamp } from "../../../../google/protobuf/timestamp";
+import { Empty } from "../google/protobuf/empty";
+import { Timestamp } from "../google/protobuf/timestamp";
 
 export const protobufPackage = "auth";
 
@@ -39,7 +39,7 @@ export interface CreateUserRequest {
   firstName: string;
   lastName: string;
   email: string;
-  role: string;
+  role?: string | undefined;
 }
 
 /** GetUserByIDRequest is the request message for retrieving a user by their unique ID. */
@@ -54,7 +54,7 @@ export interface UpdateUserRequest {
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
+  role?: string | undefined;
   confirmed?: boolean | undefined;
   confirmationTokenExpires?: Timestamp | undefined;
   resetPassword?: boolean | undefined;

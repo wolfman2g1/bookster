@@ -30,7 +30,7 @@ message CreateUserRequest {
     string first_name = 3;
     string last_name = 4;
     string email = 5;
-    string role = 6;
+    optional string role = 6;
 }
 // GetUserByIDRequest is the request message for retrieving a user by their unique ID.
 message GetUserByIDRequest {
@@ -43,7 +43,7 @@ message UpdateUserRequest {
     string email = 3;
     string first_name = 4;
     string last_name = 5;
-    string role = 6;
+    optional string role = 6;
     optional bool confirmed = 7;
     optional google.protobuf.Timestamp confirmation_token_expires = 8;
     optional bool reset_password = 9;

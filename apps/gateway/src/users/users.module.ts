@@ -4,17 +4,19 @@ import { UsersController } from './users.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AUTH_PACKAGE_NAME } from '@app/common/types/auth';
 import { join } from 'path';
+import { AUTH_SERVICE } from './constancts';
 
 @Module({
   controllers: [UsersController],
   providers: [UsersService],
   imports: [ClientsModule.register([
     {
-      name: 'AUTH_SERVICE',
+      name: AUTH_SERVICE,
       transport: Transport.GRPC,
       options: {
         package: AUTH_PACKAGE_NAME,
-        protoPath: join(__dirname, '../../../proto/auth.proto'),
+        protoPath: join(process.cwd(), 'proto/auth.proto'),
+        url: 'localhost:5001', // Must match auth service URL
       },
     },
   ])],
