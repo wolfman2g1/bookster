@@ -1,0 +1,107 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+package auth;
+message User {
+    string id = 1;
+    string username = 2;  
+    string email = 3;
+    string first_name = 4;
+    string last_name = 5;
+    string role = 6;
+    bool confirmed = 7;
+    string confirmation_token = 8;
+   optional google.protobuf.Timestamp confirmation_token_expires = 9;
+    optional bool reset_password = 10;
+      optional string reset_password_token = 11;
+    optional google.protobuf.Timestamp reset_password_token_expires = 12;
+    optional google.protobuf.Timestamp created_at = 13;
+    optional google.protobuf.Timestamp updated_at = 14;
+
+  
+}
+message Users {
+    repeated User users = 1;
+  
+}
+message CreateUserRequest {
+    string username = 1;
+    string password = 2;
+    string first_name = 3;
+    string last_name = 4;
+    string email = 5;
+    string role = 6;
+}
+// GetUserByIDRequest is the request message for retrieving a user by their unique ID.
+message GetUserByIDRequest {
+    string id = 1;
+}
+// update user request
+message UpdateUserRequest {
+    string id = 1;
+    string username = 2;  
+    string email = 3;
+    string first_name = 4;
+    string last_name = 5;
+    string role = 6;
+    optional bool confirmed = 7;
+    optional google.protobuf.Timestamp confirmation_token_expires = 8;
+    optional bool reset_password = 9;
+    optional string reset_password_token = 10;
+    optional google.protobuf.Timestamp reset_password_token_expires = 11;
+    optional google.protobuf.Timestamp updated_at = 12;
+    optional bool active = 13;
+    optional string password = 14;
+    optional google.protobuf.Timestamp created_at = 15;
+    optional string confirmation_token = 16;
+}
+//  delete user request
+message DeleteUserRequest {
+    string id = 1;
+}
+message UserLoginRequest {
+    string username = 1;
+    string password = 2;
+}
+//auth user
+message AuthUser {
+    string id = 1;
+    string username = 2;
+    string role = 3;
+    bool confirmed = 4;
+    bool active = 5;
+    string access_token = 6;
+    string refresh_token = 7;
+    optional bool mustResetPassword = 8;
+}
+message ConfirmEmailRequest {
+    string token = 1;
+}
+message ResetPasswordRequest {
+    string email = 1;
+}
+message RefreshTokenRequest {
+    string refresh_token = 1;
+}
+// UserService provides user-related operations.
+service UserService {
+    // CreateUser creates a new user with the provided information.
+    rpc CreateUser(CreateUserRequest) returns (User) {};
+    // find all users
+    rpc GetAllUsers(google.protobuf.Empty) returns (stream Users) {};
+    // GetUserByID retrieves a user by their unique ID.
+    rpc GetUserByID(GetUserByIDRequest) returns (User) {};
+    // UpdateUser updates an existing user's information.
+    rpc UpdateUser(UpdateUserRequest) returns (User) {};
+    // DeleteUser deletes a user by their unique ID.
+    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty) {};
+    // login user
+    rpc Login(UserLoginRequest) returns (AuthUser) {};
+    // confirm email
+    rpc ConfirmEmail(ConfirmEmailRequest) returns (google.protobuf.Empty) {};
+    // reset password
+    rpc ResetPassword(ResetPasswordRequest) returns (google.protobuf.Empty) {};
+    // refresh token
+    rpc RefreshToken(RefreshTokenRequest) returns (AuthUser) {};
+
+}
