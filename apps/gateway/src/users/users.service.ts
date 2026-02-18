@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { CreateUserRequest, GetUserByIDRequest, UserServiceClient, DeleteUserRequest, UpdateUserRequest, USER_SERVICE_NAME } from '@app/common/types/auth';
+import { CreateUserRequest, GetUserByIDRequest, UserServiceClient, DeleteUserRequest, UpdateUserRequest, USER_SERVICE_NAME, UserLoginRequest } from '@app/common/types/auth';
 import { AUTH_SERVICE } from './constancts';
 import { ClientGrpc } from '@nestjs/microservices';
 
@@ -29,5 +29,9 @@ export class UsersService implements OnModuleInit {
 
   remove(id: DeleteUserRequest) {
     return this.userService.deleteUser(id);
+  }
+
+  login(loginRequest: UserLoginRequest) {
+    return this.userService.login(loginRequest);
   }
 }

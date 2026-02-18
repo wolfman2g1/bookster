@@ -27,6 +27,7 @@ export interface User {
   resetPasswordTokenExpires?: Timestamp | undefined;
   createdAt?: Timestamp | undefined;
   updatedAt?: Timestamp | undefined;
+  refreshToken?: string | undefined;
 }
 
 export interface Users {
@@ -99,6 +100,10 @@ export interface ResetPasswordRequest {
 
 export interface RefreshTokenRequest {
   refreshToken: string;
+}
+
+export interface MeRequest {
+  accessToken: string;
 }
 
 export const AUTH_PACKAGE_NAME = "auth";

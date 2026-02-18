@@ -181,12 +181,39 @@ export class UsersService {
     // find user by username
     const user = await this.prisma.user.findUnique({ where: { username: request.username } });
     if (!user) {
-      throw new Error('Invalid username or password');
+      this.logger.warn(`Login failed: User not found for username: ${request.username}`);
+      throw new RpcException({
+        code: 16, // UNAUTHENTICATED
+        message: 'Invalid username or password'
+      });
     }
+    
+    this.logger.log(`User found: ${user.username}, confirmed: ${user.confirmed}, active: ${user.active}`);
+    
     // verify password
     const valid = await argon.verify(user.passwordHash, request.password);
+    this.logger.log(`Password verification result: ${valid}`);
+    
     if (!valid) {
-      throw new Error('Invalid username or password');
+      this.logger.warn(`Login failed: Invalid password for username: ${request.username}`);
+      throw new RpcException({
+        code: 16, // UNAUTHENTICATED
+        message: 'Invalid username or password'
+      });
+    }
+    if (!user.confirmed) {
+      this.logger.warn(`Login failed: Email not confirmed for username: ${request.username}`);
+      throw new RpcException({
+        code: 7, // PERMISSION_DENIED
+        message: 'Email not confirmed'
+      });
+    }
+    if (!user.active) {
+      this.logger.warn(`Login failed: Account inactive for username: ${request.username}`);
+      throw new RpcException({
+        code: 7, // PERMISSION_DENIED
+        message: 'User account is inactive'
+      });
     }
     this.logger.log(`User logged in with ID: ${user.id}`);
     // generate access token and refresh token
