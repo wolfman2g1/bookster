@@ -39,3 +39,192 @@ enum Role {
   USER
   ADMIN
 }
+
+enum ExternalSource {
+  OPEN_LIBRARY
+  GOOGLE_BOOKS
+  OTHER
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+enum ReadingStatus {
+  WANT
+  READING
+  READ
+  DNF
+}
+
+model Book {
+  id            String   @id @default(uuid())
+  title         String
+  subtitle      String?
+  description   String?
+  language      String?
+  publishedYear Int?
+  posts Post[]
+
+  coverImageUrl String?
+
+  // External identity (for de-dupe and re-import)
+  externalSource ExternalSource?
+  externalId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authors   BookAuthor[]
+  genres    BookGenre[]
+  reactions UserBookReaction[]
+  statuses  UserBookStatus[]
+
+  @@unique([externalSource, externalId])
+  @@index([title])
+}
+
+model Author {
+  id            String   @id @default(uuid())
+  name          String
+  sortName      String?
+
+  externalSource ExternalSource?
+  externalId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books BookAuthor[]
+
+  @@unique([externalSource, externalId])
+  @@index([name])
+}
+
+model Genre {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books BookGenre[]
+}
+
+model BookAuthor {
+  bookId   String
+  authorId String
+
+  role     String? // "author", "editor", etc
+  position Int     @default(0)
+
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  author Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, authorId])
+  @@index([authorId])
+}
+
+model BookGenre {
+  bookId  String
+  genreId String
+
+  confidence Float? // optional: if imported
+  book   Book  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  genre  Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, genreId])
+  @@index([genreId])
+}
+
+// Replaces "liked_by" arrays. One row per user per book.
+model UserBookReaction {
+  userId String
+  bookId String
+
+  reaction  ReactionType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId]) // ensures can't like and dislike simultaneously
+  @@index([bookId, reaction])
+  @@index([userId, reaction])
+}
+
+// Reading / shelf state
+model UserBookStatus {
+  userId String
+  bookId String
+
+  status    ReadingStatus
+  startedAt DateTime?
+  finishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId])
+  @@index([bookId, status])
+  @@index([userId, status])
+}
+enum PostType {
+  CHECKIN
+}
+
+enum Visibility {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
+model Post {
+  id         String   @id @default(uuid())
+  userId     String
+  bookId     String
+
+  type       PostType @default(CHECKIN)
+  body       String?
+  rating     Int?     // 1..5 (validate in app)
+  spoiler    Boolean  @default(false)
+  visibility Visibility @default(PUBLIC)
+
+  // Optional “side effects” you may apply to the user’s library state
+  statusApplied  ReadingStatus?
+  reactionApplied ReactionType?
+
+  progressPage    Int?
+  progressPercent Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  book     Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@index([bookId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Comment {
+  id        String  @id @default(uuid())
+  postId    String
+  userId    String
+  body      String
+
+  parentCommentId String?
+  parent          Comment? @relation("CommentThread", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentThread")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([userId, createdAt])
+}

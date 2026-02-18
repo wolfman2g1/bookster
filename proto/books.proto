@@ -1,0 +1,260 @@
+syntax = "proto3";
+
+package bookapp.books.v1;
+
+option go_package = "bookapp/books/v1;booksv1";
+
+// --------------------
+// Service
+// --------------------
+service BooksService {
+  // Searches books. Server may use a search engine (Meilisearch) and optionally fall back
+  // to external sources if local results are weak/empty.
+  rpc SearchBooks(SearchBooksRequest) returns (SearchBooksResponse);
+
+  rpc GetBook(GetBookRequest) returns (GetBookResponse);
+
+  // Upsert a book (used by importers/workers).
+  rpc UpsertBook(UpsertBookRequest) returns (UpsertBookResponse);
+
+  rpc SetUserBookReaction(SetUserBookReactionRequest) returns (SetUserBookReactionResponse);
+
+  rpc SetUserBookStatus(SetUserBookStatusRequest) returns (SetUserBookStatusResponse);
+}
+
+// --------------------
+// Enums
+// --------------------
+enum ExternalSource {
+  EXTERNAL_SOURCE_UNSPECIFIED = 0;
+  OPEN_LIBRARY = 1;
+  GOOGLE_BOOKS = 2;
+  OTHER = 3;
+}
+
+enum ReactionType {
+  REACTION_TYPE_UNSPECIFIED = 0;
+  LIKE = 1;
+  DISLIKE = 2;
+}
+
+enum ReadingStatus {
+  READING_STATUS_UNSPECIFIED = 0;
+  WANT = 1;
+  READING = 2;
+  READ = 3;
+  DNF = 4;
+}
+
+// --------------------
+// Core Models
+// --------------------
+message Book {
+  string id = 1;
+
+  string title = 2;
+  string subtitle = 3;
+  string description = 4;
+
+  string language = 5;
+  int32 published_year = 6;
+
+  string cover_image_url = 7;
+
+  ExternalSource external_source = 8;
+  string external_id = 9;
+
+  repeated Author authors = 10;
+  repeated Genre genres = 11;
+
+  // Convenience fields that are useful for search display + ranking.
+  // (These can be derived server-side; clients don't need to compute them.)
+  string primary_author = 12;
+  repeated string author_names = 13; // useful for Meilisearch searchableAttributes
+  repeated string genre_slugs = 14;  // useful for Meilisearch filterableAttributes
+
+  // Optional stats (for ranking/feeds; server may omit).
+  int64 like_count = 15;
+  int64 dislike_count = 16;
+  int64 want_count = 17;
+  int64 reading_count = 18;
+  int64 read_count = 19;
+  int64 dnf_count = 20;
+
+  // ISO-8601 strings for simplicity across languages.
+  string created_at = 21;
+  string updated_at = 22;
+}
+
+message Author {
+  string id = 1;
+  string name = 2;
+  string sort_name = 3;
+
+  ExternalSource external_source = 4;
+  string external_id = 5;
+
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+message Genre {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message UserBookReaction {
+  string user_id = 1;
+  string book_id = 2;
+  ReactionType reaction = 3;
+
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message UserBookStatus {
+  string user_id = 1;
+  string book_id = 2;
+  ReadingStatus status = 3;
+
+  string started_at = 4;
+  string finished_at = 5;
+
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+// --------------------
+// Search
+// --------------------
+message SearchBooksRequest {
+  string query = 1;
+
+  // Pagination — Meilisearch supports limit/offset style easily.
+  int32 limit = 2;
+  int32 offset = 3;
+
+  // If local search results are weak/empty, server may query external sources and enqueue imports.
+  bool allow_external_fallback = 4;
+
+  // Filters (map nicely to Meilisearch filterableAttributes)
+  string language = 5;
+  int32 published_year_min = 6;
+  int32 published_year_max = 7;
+  repeated string genre_slugs = 8;
+
+  // Optional: simple sort hints (server decides if supported)
+  // Examples: "relevance", "published_year:desc", "like_count:desc"
+  string sort = 9;
+}
+
+message SearchBooksResponse {
+  repeated Book books = 1;
+
+  // Whether the server performed an external fallback request.
+  bool used_external_fallback = 2;
+
+  // Whether the server queued background imports/upserts for any external hits.
+  bool import_enqueued = 3;
+
+  // Best-effort count for pagination.
+  int32 total = 4;
+}
+
+// --------------------
+// Get Book
+// --------------------
+message GetBookRequest {
+  string id = 1;
+  bool include_stats = 2;
+}
+
+message GetBookResponse {
+  Book book = 1;
+}
+
+// --------------------
+// Upsert Book (Importer/Worker)
+// --------------------
+message UpsertBookRequest {
+  // Optional internal ID (if known)
+  string id = 1;
+
+  string title = 2;
+  string subtitle = 3;
+  string description = 4;
+
+  string language = 5;
+  int32 published_year = 6;
+
+  string cover_image_url = 7;
+
+  ExternalSource external_source = 8;
+  string external_id = 9;
+
+  repeated UpsertAuthor authors = 10;
+  repeated UpsertGenre genres = 11;
+
+  // Optional: if true, server should push/update the search document as part of this call.
+  bool reindex_search_document = 12;
+}
+
+message UpsertAuthor {
+  string id = 1;
+  string name = 2;
+  string sort_name = 3;
+
+  ExternalSource external_source = 4;
+  string external_id = 5;
+
+  // Join-table-ish fields
+  string role = 6;
+  int32 position = 7;
+}
+
+message UpsertGenre {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+
+  float confidence = 4;
+}
+
+message UpsertBookResponse {
+  Book book = 1;
+  bool created = 2;
+}
+
+// --------------------
+// User Reaction
+// --------------------
+message SetUserBookReactionRequest {
+  string user_id = 1;
+  string book_id = 2;
+  ReactionType reaction = 3;
+}
+
+message SetUserBookReactionResponse {
+  UserBookReaction reaction = 1;
+}
+
+// --------------------
+// User Status
+// --------------------
+message SetUserBookStatusRequest {
+  string user_id = 1;
+  string book_id = 2;
+
+  ReadingStatus status = 3;
+
+  string started_at = 4;
+  string finished_at = 5;
+}
+
+message SetUserBookStatusResponse {
+  UserBookStatus status = 1;
+}

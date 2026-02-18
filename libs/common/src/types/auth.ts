@@ -10,7 +10,7 @@ import { Observable } from "rxjs";
 import { Empty } from "../google/protobuf/empty";
 import { Timestamp } from "../google/protobuf/timestamp";
 
-export const protobufPackage = "auth";
+export const authProtobufPackage = "auth";
 
 export interface User {
   id: string;
