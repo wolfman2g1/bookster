@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '@app/common';
-import { MeilisearchModule } from '@app/common/meilisearch';
+import { DatabaseModule, MeilisearchModule, BooksapiModule } from '@app/common';
 import { BooksService } from './books.service';
 import { BooksController } from './books.controller';
-import { BooksapiModule } from '@app/common/booksapi/booksapi.module';
 
 @Module({
   imports: [DatabaseModule, MeilisearchModule,BooksapiModule],

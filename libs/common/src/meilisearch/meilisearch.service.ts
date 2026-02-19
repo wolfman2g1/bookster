@@ -1,12 +1,20 @@
 import { MEILISEARCH_SDK_CLIENT } from '@nestixis/nestjs-meilisearch';
 import { MeiliSearch } from 'meilisearch';
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject,OnModuleInit, Logger } from '@nestjs/common';
+import { BOOKS_INDEX } from './books-index';
 
 @Injectable()
-export class MeilisearchService {
+export class MeilisearchService implements OnModuleInit {
+    private logger = new Logger(MeilisearchService.name);
      constructor(
     @Inject(MEILISEARCH_SDK_CLIENT) private readonly meiliSearchClient: MeiliSearch
      ) { }
+    onModuleInit() {
+        this.logger.log('Creating books index');
+        this.meiliSearchClient.createIndex(BOOKS_INDEX, {
+            primaryKey: 'id',
+        });
+    }
     async index(indexName: string = 'books') {
         return this.meiliSearchClient.index(indexName);
     }

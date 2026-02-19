@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit,Logger } from '@nestjs/common';
 import { DatabaseService } from '@app/common';
 import {
   MeilisearchService,
@@ -21,13 +21,11 @@ import type {
   SetUserBookStatusResponse,
 } from '@app/common';
 import { ExternalSource, ReactionType, ReadingStatus } from '@app/common';
-import {
-  BooksapiService,
-  openLibraryToBook,
-} from '@app/common/booksapi';
+import { BooksapiService, openLibraryToBook } from '@app/common';
 
 @Injectable()
 export class BooksService implements OnModuleInit {
+  private logger = new Logger(BooksService.name);
   constructor(
     private readonly prisma: DatabaseService,
     private readonly meilisearch: MeilisearchService,
@@ -58,15 +56,19 @@ export class BooksService implements OnModuleInit {
   async searchBooks(
     request: SearchBooksRequest,
   ): Promise<SearchBooksResponse> {
-    const limit = Math.min(request.limit || 20, 100);
-    const offset = request.offset || 0;
-    const filter = this.buildMeilisearchFilter(request);
-    const sort = this.parseSort(request.sort);
+    // Normalize request (gRPC may send snake_case)
+    const req = this.normalizeSearchRequest(request);
+    const limit = Math.min(req.limit || 20, 100);
+    const offset = req.offset || 0;
+    const filter = this.buildMeilisearchFilter(req);
+    const sort = this.parseSort(req.sort);
+    const query = (req.query ?? '').trim();
 
     // 1. Search cache first
+    this.logger.log(`Searching cache for: "${query}"`);
     const cacheResult = await this.meilisearch.search(
       BOOKS_INDEX,
-      request.query || '',
+      query,
       {
         limit,
         offset,
@@ -81,19 +83,35 @@ export class BooksService implements OnModuleInit {
     let books: Book[] = cacheHits.map(searchDocumentToBook);
     let total = cacheResult.estimatedTotalHits ?? books.length;
 
-    // 2. If cache empty, search database
-    if (cacheHits.length === 0 && request.query?.trim()) {
+    // 2. If cache empty or results don't match query, search database then Open Library
+    const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'in', 'of', 'to', 'for']);
+    const meaningfulTerms = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 1 && !stopwords.has(t));
+    const cacheMatchesQuery =
+      !query ||
+      meaningfulTerms.length === 0 ||
+      cacheHits.some((hit: { title?: string; authorNames?: string[] }) => {
+        const title = (hit.title ?? '').toLowerCase();
+        const authors = (hit.authorNames ?? []).join(' ').toLowerCase();
+        const haystack = `${title} ${authors}`;
+        return meaningfulTerms.some((t) => haystack.includes(t));
+      });
+    if ((cacheHits.length === 0 || !cacheMatchesQuery) && query) {
+      this.logger.log(`Cache miss or no match for "${query}", searching DB and Open Library`);
       const dbBooks = await this.searchDatabase(
-        request.query,
+        query,
         limit,
         offset,
-        request,
+        req,
       );
       books = dbBooks;
 
       // if the books are not found in the database, search the open library
       if (books.length === 0) {
-        for (const word of request.query.split(' ')) {
+        this.logger.log(`Searching Open Library for: ${query}`);
+        for (const word of query.split(' ')) {
           const openLibraryBooks = await this.booksapi.searchBooks(word);
           if (openLibraryBooks.docs.length > 0) {
             books.push(
@@ -105,10 +123,12 @@ export class BooksService implements OnModuleInit {
       }
     }
     // Upsert Open Library results into the database (cache + DB hits already exist)
-    for (const book of books) {
+    for (let i = 0; i < books.length; i++) {
+      const book = books[i];
       if (book.externalSource === 1 && book.externalId) {
-        await this.upsertBook({
-          id: book.id,
+        this.logger.log(`Upserting book: ${book.title}`);
+        const { book: upserted } = await this.upsertBook({
+          id: '', // Don't pass OL key as DB id - let Postgres generate UUID
           title: book.title,
           subtitle: book.subtitle,
           description: book.description,
@@ -117,14 +137,14 @@ export class BooksService implements OnModuleInit {
           coverImageUrl: book.coverImageUrl,
           externalSource: book.externalSource,
           externalId: book.externalId,
-          authors: book.authors.map((a, i) => ({
+          authors: book.authors.map((a, j) => ({
             id: a.id,
             name: a.name,
             sortName: a.sortName,
             externalSource: a.externalSource,
             externalId: a.externalId,
             role: '',
-            position: i,
+            position: j,
           })),
           genres: book.genres.map((g) => ({
             id: g.id,
@@ -134,17 +154,35 @@ export class BooksService implements OnModuleInit {
           })),
           reindexSearchDocument: true,
         });
-        // index the book in meilisearch
-        await this.indexBookInMeilisearch(book.id);
+        if (upserted) books[i] = upserted;
         total++;
         break;
       }
     }
+    this.logger.log(`Found ${books.length} books`);
     return {
       books,
       usedExternalFallback: false,
       importEnqueued: false,
       total,
+    };
+  }
+
+  /** Normalize request (gRPC may send snake_case from proto) */
+  private normalizeSearchRequest(
+    r: SearchBooksRequest | Record<string, unknown>,
+  ): SearchBooksRequest {
+    const raw = r as Record<string, unknown>;
+    return {
+      query: (raw.query ?? raw.q ?? '') as string,
+      limit: (raw.limit ?? 20) as number,
+      offset: (raw.offset ?? 0) as number,
+      allowExternalFallback: (raw.allowExternalFallback ?? raw.allow_external_fallback ?? false) as boolean,
+      language: (raw.language ?? '') as string,
+      publishedYearMin: (raw.publishedYearMin ?? raw.published_year_min ?? 0) as number,
+      publishedYearMax: (raw.publishedYearMax ?? raw.published_year_max ?? 0) as number,
+      genreSlugs: (raw.genreSlugs ?? raw.genre_slugs ?? []) as string[],
+      sort: (raw.sort ?? '') as string,
     };
   }
 
@@ -282,7 +320,7 @@ export class BooksService implements OnModuleInit {
       } else {
         book = await this.prisma.book.create({
           data: {
-            id: request.id || undefined,
+            // Omit id - let Postgres generate UUID. externalId stores the Open Library key.
             title: request.title,
             subtitle: request.subtitle || null,
             description: request.description || null,
